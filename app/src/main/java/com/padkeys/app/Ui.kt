@@ -60,8 +60,10 @@ val ChannelColors = listOf(
     Color(0xFF3FD6A5), // CH 3 berde
     Color(0xFFE56B9A), // CH 4 pink
     Color(0xFFA98BFF), // CH 5 lila
+    Color(0xFF38C8E8), // CH 6 cyan
+    Color(0xFFC6E04A), // CH 7 lime
+    Color(0xFFFF7A59), // CH 8 orange
 )
-
 val Condensed = FontFamily(Typeface.create("sans-serif-condensed", Typeface.BOLD))
 
 @Composable
