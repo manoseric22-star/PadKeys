@@ -430,30 +430,28 @@ fun BottomSection(state: PadKeysState, modifier: Modifier) {
             Modifier.weight(1f).fillMaxHeight(),
             verticalArrangement = Arrangement.spacedBy(6.dp),
         ) {
-            Row(
-                Modifier.fillMaxWidth().height(44.dp),
-                horizontalArrangement = Arrangement.spacedBy(12.dp),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                LayerBars(state, Modifier.weight(1f).height(38.dp))
-                Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                    listOf(88, 61, 25).forEach { n ->
-                        Btn(
-                            Modifier.size(44.dp),
-                            selected = state.keyCount == n,
-                            onClick = { state.keyCount = n },
-                        ) {
-                            Text(
-                                n.toString(),
-                                color = if (state.keyCount == n) C.Ink else C.Text,
-                                fontSize = 13.sp,
-                                fontWeight = FontWeight.SemiBold,
-                            )
-                        }
-                    }
+            LayerBars(state, Modifier.fillMaxWidth().height(38.dp))
+            PianoKeyboard(state, Modifier.weight(1f).fillMaxWidth())
+        }
+
+        Column(
+            Modifier.width(52.dp).fillMaxHeight(),
+            verticalArrangement = Arrangement.spacedBy(6.dp),
+        ) {
+            listOf(25, 61, 88).forEach { n ->
+                Btn(
+                    Modifier.weight(1f).fillMaxWidth(),
+                    selected = state.keyCount == n,
+                    onClick = { state.keyCount = n },
+                ) {
+                    Text(
+                        n.toString(),
+                        color = if (state.keyCount == n) C.Ink else C.Text,
+                        fontSize = 14.sp,
+                        fontWeight = FontWeight.SemiBold,
+                    )
                 }
             }
-            PianoKeyboard(state, Modifier.weight(1f).fillMaxWidth())
         }
     }
 }
