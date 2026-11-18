@@ -8,6 +8,8 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.graphics.Color
 
+const val MAX_CHANNELS = 16
+
 class ChannelState(
     val number: Int,
     val name: String,
@@ -38,7 +40,7 @@ class SceneSnapshot(
 class PadKeysState {
     var master by mutableFloatStateOf(0.8f)
 
-    val channels = listOf(
+    val channels = mutableStateListOf(
         ChannelState(1, "Strings", ChannelColors[0], 0.78f, 0f, 1f),
         ChannelState(2, "Pad", ChannelColors[1], 0.62f, 0f, 0.5f),
         ChannelState(3, "Piano", ChannelColors[2], 0.85f, 0.5f, 1f),
@@ -62,6 +64,7 @@ class PadKeysState {
     var scene by mutableIntStateOf(0)
 
     // Keyboard
+    var keyboardVisible by mutableStateOf(true)
     var keyCount by mutableIntStateOf(61)
     var pitch by mutableFloatStateOf(0.5f)
     var mod by mutableFloatStateOf(0f)
@@ -74,6 +77,13 @@ class PadKeysState {
 
     fun noteOff(note: Int) {
         pressed = pressed - note
+    }
+
+    fun addChannel() {
+        if (channels.size >= MAX_CHANNELS) return
+        val n = channels.size + 1
+        // Walang instrument muna (blangko ang pangalan)
+        channels.add(ChannelState(n, "", ChannelColors[(n - 1) % ChannelColors.size], 0.7f, 0f, 1f))
     }
 
     fun prevSong() {
@@ -94,10 +104,13 @@ class PadKeysState {
         scene = index
         scenes[index]?.let { s ->
             channels.forEachIndexed { k, c ->
-                c.volume = s.volumes[k]
-                c.mute = s.mutes[k]
-                c.solo = s.solos[k]
-                c.fx = s.fx[k]
+                // Ang mga channel na idinagdag pagkatapos i-save ang scene ay hindi ginagalaw.
+                if (k < s.volumes.size) {
+                    c.volume = s.volumes[k]
+                    c.mute = s.mutes[k]
+                    c.solo = s.solos[k]
+                    c.fx = s.fx[k]
+                }
             }
         }
     }
