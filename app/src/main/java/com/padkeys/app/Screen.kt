@@ -6,6 +6,7 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -17,6 +18,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -25,6 +27,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.geometry.CornerRadius
@@ -34,7 +37,6 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import kotlin.math.roundToInt
@@ -70,7 +72,10 @@ fun PadKeysScreen(state: PadKeysState) {
             }
         }
 
-        BottomSection(state, Modifier.fillMaxWidth().height(176.dp))
+        // Kapag naka-hide ang keyboard, lumalaki ang ibang panels para punuin ang espasyo.
+        if (state.keyboardVisible) {
+            BottomSection(state, Modifier.fillMaxWidth().height(176.dp))
+        }
     }
 }
 
@@ -274,15 +279,68 @@ fun DronePanel(state: PadKeysState, modifier: Modifier) {
 
 @Composable
 fun ChannelsPanel(state: PadKeysState, modifier: Modifier) {
+    val listState = rememberLazyListState()
+    val count = state.channels.size
+
+    // Kapag may idinagdag na channel (lampas 5), mag-slide papunta sa bago.
+    LaunchedEffect(count) {
+        if (count > 5) listState.animateScrollToItem(count - 1)
+    }
+
     Panel(modifier) {
-        Row(
-            Modifier.fillMaxSize().padding(12.dp),
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
-        ) {
-            state.channels.forEach { ch ->
-                ChannelStrip(ch, Modifier.weight(1f).fillMaxHeight())
+        BoxWithConstraints(Modifier.fillMaxSize().padding(12.dp)) {
+            // 5 channel ang kasya sa screen; ang sobra ay i-swipe pakaliwa/pakanan.
+            // 56dp = Add tile, 8dp = pagitan, 32dp = 4 pagitan ng 5 strips
+            val stripWidth = (maxWidth - 96.dp) / 5
+
+            Row(
+                Modifier.fillMaxSize(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                LazyRow(
+                    Modifier.weight(1f).fillMaxHeight(),
+                    state = listState,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    itemsIndexed(state.channels, key = { _, ch -> ch.number }) { _, ch ->
+                        ChannelStrip(ch, Modifier.width(stripWidth).fillMaxHeight())
+                    }
+                }
+                AddChannelTile(count, Modifier.width(56.dp).fillMaxHeight()) { state.addChannel() }
             }
         }
+    }
+}
+
+@Composable
+private fun AddChannelTile(count: Int, modifier: Modifier, onClick: () -> Unit) {
+    val full = count >= MAX_CHANNELS
+    val shape = RoundedCornerShape(8.dp)
+    Column(
+        modifier
+            .alpha(if (full) 0.4f else 1f)
+            .clip(shape)
+            .background(C.Strip)
+            .clickable(enabled = !full, role = Role.Button, onClick = onClick),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.Center,
+    ) {
+        val plusShape = RoundedCornerShape(10.dp)
+        Box(
+            Modifier
+                .size(44.dp)
+                .border(2.dp, Color(0xFF5A6692), plusShape),
+            contentAlignment = Alignment.Center,
+        ) {
+            PlusIcon(Modifier.size(22.dp), Color(0xFFDDE3FA))
+        }
+        Spacer(Modifier.height(8.dp))
+        Text(
+            "$count/$MAX_CHANNELS",
+            color = C.Muted,
+            fontSize = 11.sp,
+            fontWeight = FontWeight.SemiBold,
+        )
     }
 }
 
@@ -305,7 +363,11 @@ fun ChannelStrip(ch: ChannelState, modifier: Modifier) {
                 fontWeight = FontWeight.SemiBold,
                 letterSpacing = 0.9.sp,
             )
-            Text(ch.name, color = C.Text, fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
+            if (ch.name.isEmpty()) {
+                Text("Empty", color = C.Muted, fontSize = 15.sp, fontWeight = FontWeight.Medium)
+            } else {
+                Text(ch.name, color = C.Text, fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
+            }
         }
 
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
@@ -389,17 +451,18 @@ fun ScenesBar(state: PadKeysState, modifier: Modifier) {
                 LayersIcon(Modifier.size(28.dp), Color.White)
             }
 
-            // Keyboard
+            // Keyboard: i-tap para itago o ipakita ang virtual keys, layer strips, Pitch, Mod at 88/61/25
+            val kbVisible = state.keyboardVisible
             Box(
                 Modifier
                     .size(48.dp)
                     .clip(big)
-                    .background(Color(0x806EB4FF))
-                    .border(1.dp, Color(0x9987BEFF), big)
-                    .clickable(role = Role.Button) { /* TODO: keyboard settings */ },
+                    .background(if (kbVisible) Color(0x806EB4FF) else Color(0x1F6EB4FF))
+                    .border(1.dp, if (kbVisible) Color(0x9987BEFF) else Color(0x4D87BEFF), big)
+                    .clickable(role = Role.Button) { state.keyboardVisible = !state.keyboardVisible },
                 contentAlignment = Alignment.Center,
             ) {
-                PianoIcon(Modifier.size(30.dp))
+                PianoIcon(Modifier.size(30.dp).alpha(if (kbVisible) 1f else 0.45f))
             }
         }
     }
@@ -498,9 +561,11 @@ private fun Wheel(
 @Composable
 private fun LayerBars(state: PadKeysState, modifier: Modifier) {
     Canvas(modifier) {
-        val barH = 6.dp.toPx()
-        val gap = 2.dp.toPx()
-        val total = state.channels.size * barH + (state.channels.size - 1) * gap
+        val n = state.channels.size
+        // Kapag marami ang channel, numinipis ang bawat guhit para kumasya sa taas.
+        val gap = if (n > 5) 1.dp.toPx() else 2.dp.toPx()
+        val barH = ((size.height - (n - 1) * gap) / n).coerceIn(1.dp.toPx(), 6.dp.toPx())
+        val total = n * barH + (n - 1) * gap
         val top = (size.height - total) / 2f
         state.channels.forEachIndexed { i, ch ->
             val y = top + i * (barH + gap)
