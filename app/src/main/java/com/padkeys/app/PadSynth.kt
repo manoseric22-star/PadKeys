@@ -13,13 +13,13 @@ import kotlin.math.sin
 import kotlin.math.tanh
 
 /** Ang 6 na pad presets. */
-enum class PadPreset(val label: String, val blurb: String) {
-    WarmWorship("Warm Worship", "Mainit, malambot na pundasyon"),
-    SoftShimmer("Soft Shimmer", "Banayad na kinang sa itaas"),
-    DeepStillness("Deep Stillness", "Malalim, tahimik, madilim"),
-    CathedralGlow("Cathedral Glow", "Malawak na simbahan, mahabang reverb"),
-    GentleChoir("Gentle Choir", "Parang koro na 'ah'"),
-    AiryPraise("Airy Praise", "Maaliwalas, may hangin"),
+enum class PadPreset(val label: String) {
+    WarmWorship("Warm Worship"),
+    SoftShimmer("Soft Shimmer"),
+    DeepStillness("Deep Stillness"),
+    CathedralGlow("Cathedral Glow"),
+    GentleChoir("Gentle Choir"),
+    AiryPraise("Airy Praise"),
 }
 
 private const val SR = 44100
