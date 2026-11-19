@@ -16,15 +16,14 @@ import kotlinx.coroutines.launch
 
 const val MAX_CHANNELS = 16
 const val MAX_SCENES = 16
-const val KEY_STEPS = 36 // saklaw ng layers: 36 puting key (C2 hanggang dulo ng 61 keys)
 
 private var nextChannelUid = 0
 
 class ChannelState(
     initialNumber: Int,
     initialVolume: Float = 0.7f,
-    startKey: Int = 0,
-    endKey: Int = KEY_STEPS,
+    startNote: Int = 0,
+    endNote: Int = 127,
 ) {
     val uid = nextChannelUid++
     var number by mutableIntStateOf(initialNumber)
@@ -39,14 +38,9 @@ class ChannelState(
     var solo by mutableStateOf(false)
     var fx by mutableStateOf(false)
 
-    // Saklaw ng layer sa keyboard, sa puting key: lo ..< hi (0..36)
-    var lo by mutableIntStateOf(startKey)
-    var hi by mutableIntStateOf(endKey)
-
-    fun setRange(newLo: Int, newHi: Int) {
-        lo = newLo.coerceIn(0, KEY_STEPS - 1)
-        hi = newHi.coerceIn(lo + 1, KEY_STEPS)
-    }
+    // Saklaw ng layer sa keyboard bilang MIDI notes (60 = C4). 0 at 127 = hanggang dulo ng keyboard.
+    var lo by mutableIntStateOf(startNote)
+    var hi by mutableIntStateOf(endNote)
 }
 
 class Song(val title: String, val patch: String)
@@ -135,11 +129,11 @@ class PadKeysState : ViewModel() {
 
     // Lahat ng channel ay walang instrument muna.
     val channels = mutableStateListOf(
-        ChannelState(1, 0.78f, 0, 36),
-        ChannelState(2, 0.62f, 0, 18),
-        ChannelState(3, 0.85f, 18, 36),
-        ChannelState(4, 0.54f, 0, 13),
-        ChannelState(5, 0.70f, 22, 36),
+        ChannelState(1, 0.78f, 0, 127),
+        ChannelState(2, 0.62f, 0, 59),   // hanggang B3
+        ChannelState(3, 0.85f, 60, 127), // mula C4
+        ChannelState(4, 0.54f, 0, 48),   // hanggang C3
+        ChannelState(5, 0.70f, 67, 127), // mula G4
     )
 
     // Setlist (Song + Patch)
