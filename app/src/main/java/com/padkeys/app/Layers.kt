@@ -53,7 +53,7 @@ private const val HIGH = 2
 fun LayerEditor(state: PadKeysState, modifier: Modifier) {
     // Parehong layout ng virtual keys sa ibaba, kaya laging tugma (25 / 61 / 88)
     val layout = remember(state.keyCount) { KeyLayout.forKeyCount(state.keyCount) }
-    val steps = layout.whites.size
+    val steps = layout.count
 
     Panel(modifier) {
         Column(Modifier.fillMaxSize()) {
@@ -100,8 +100,9 @@ fun LayerEditor(state: PadKeysState, modifier: Modifier) {
                     Column(Modifier.fillMaxWidth()) {
                         // Ruler: C1..C8 sa posisyon ng bawat C sa keyboard
                         Box(Modifier.fillMaxWidth().height(22.dp)) {
-                            layout.whites.forEachIndexed { i, n ->
+                            (layout.first..layout.last).forEach { n ->
                                 if (n % 12 == 0) {
+                                    val i = n - layout.first
                                     Text(
                                         "C${n / 12 - 1}",
                                         color = C.Muted,
@@ -131,9 +132,9 @@ private fun LayerRow(
     trackPx: Float,
     trackDp: Dp,
 ) {
-    val steps = layout.whites.size
+    val steps = layout.count
     val selected = state.layerSel == index
-    val (iLo, iHi) = layout.whiteSpan(ch.lo, ch.hi)
+    val (iLo, iHi) = layout.noteSpan(ch.lo, ch.hi)
     val left = trackDp * (iLo.toFloat() / steps)
     val width = trackDp * ((iHi - iLo + 1).toFloat() / steps)
     val right = left + width
@@ -147,8 +148,9 @@ private fun LayerRow(
             .pointerInput(index) { detectTapGestures(onTap = { select() }) },
     ) {
         // Guhit sa bawat C
-        layout.whites.forEachIndexed { i, n ->
+        (layout.first..layout.last).forEach { n ->
             if (n % 12 == 0) {
+                val i = n - layout.first
                 Box(
                     Modifier
                         .offset(x = trackDp * (i.toFloat() / steps))
@@ -173,7 +175,7 @@ private fun LayerRow(
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.CenterHorizontally),
         ) {
-            NoteChip(noteName(layout.whites[iLo]))
+            NoteChip(noteName(layout.first + iLo))
             Text(
                 ch.name.ifBlank { "Empty" },
                 color = C.Ink,
@@ -182,7 +184,7 @@ private fun LayerRow(
                 maxLines = 1,
                 modifier = Modifier.weight(1f, fill = false),
             )
-            NoteChip(noteName(layout.whites[iHi]))
+            NoteChip(noteName(layout.first + iHi))
         }
 
         Handle(trackPx, layout, ch, LOW, left, selected, select)
@@ -230,11 +232,10 @@ private fun Handle(
     }
 }
 
-/** Ang saklaw ay nasa puting key. Kapag nasa dulo ng keyboard, ginagawang 0/127 para sumunod sa 25/61/88. */
+/** Bawat semitone (kasama ang sharps) ay may sariling hakbang. Sa dulo ng keyboard = 0/127 para sumunod sa 25/61/88. */
 private fun ChannelState.setSpan(layout: KeyLayout, iLo: Int, iHi: Int) {
-    val last = layout.whites.lastIndex
-    lo = if (iLo <= 0) 0 else layout.whites[iLo]
-    hi = if (iHi >= last) 127 else layout.whites[iHi]
+    lo = if (iLo <= 0) 0 else layout.first + iLo
+    hi = if (iHi >= layout.count - 1) 127 else layout.first + iHi
 }
 
 private fun Modifier.dragRange(
@@ -244,13 +245,13 @@ private fun Modifier.dragRange(
     mode: Int,
     onSelect: () -> Unit,
 ): Modifier = pointerInput(trackPx, mode, ch, layout) {
-    val steps = layout.whites.size
+    val steps = layout.count
     var startLo = 0
     var startHi = 0
     var acc = 0f
     detectDragGestures(
         onDragStart = {
-            val span = layout.whiteSpan(ch.lo, ch.hi)
+            val span = layout.noteSpan(ch.lo, ch.hi)
             startLo = span.first
             startHi = span.second
             acc = 0f
