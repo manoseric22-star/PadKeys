@@ -7,6 +7,7 @@ import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.graphics.Color
+import androidx.lifecycle.ViewModel
 
 const val MAX_CHANNELS = 16
 
@@ -37,8 +38,74 @@ class SceneSnapshot(
     val fx: List<Boolean>,
 )
 
-class PadKeysState {
-    var master by mutableFloatStateOf(0.8f)
+class PadKeysState : ViewModel() {
+    // ---- Audio engine (Ambient Pads). Nakatali sa ViewModel kaya hindi nauulit kapag nag-rotate.
+    private val synth = PadSynth()
+
+    private var _master by mutableFloatStateOf(0.8f)
+    var master: Float
+        get() = _master
+        set(v) {
+            _master = v.coerceIn(0f, 1f)
+            synth.setMasterVolume(_master)
+        }
+
+    private var _padVolume by mutableFloatStateOf(0.7f)
+    var padVolume: Float
+        get() = _padVolume
+        set(v) {
+            _padVolume = v.coerceIn(0f, 1f)
+            synth.setPadVolume(_padVolume)
+        }
+
+    private var _padKey by mutableIntStateOf(-1)
+    /** Aktibong pad key: 0 = C ... 11 = B, -1 = walang naka-on. */
+    var dronePad: Int
+        get() = _padKey
+        set(v) {
+            _padKey = v
+            synth.setKey(v)
+        }
+
+    private var _preset by mutableStateOf(PadPreset.WarmWorship)
+    var preset: PadPreset
+        get() = _preset
+        set(v) {
+            _preset = v
+            synth.setPreset(v)
+        }
+
+    private var _tone by mutableFloatStateOf(0.5f)
+    var tone: Float
+        get() = _tone
+        set(v) {
+            _tone = v.coerceIn(0f, 1f)
+            synth.setTone(_tone)
+        }
+
+    private var _brightness by mutableFloatStateOf(0.5f)
+    var brightness: Float
+        get() = _brightness
+        set(v) {
+            _brightness = v.coerceIn(0f, 1f)
+            synth.setBrightness(_brightness)
+        }
+
+    init {
+        synth.setMasterVolume(_master)
+        synth.setPadVolume(_padVolume)
+        synth.setKey(_padKey)
+        synth.setPreset(_preset)
+        synth.setTone(_tone)
+        synth.setBrightness(_brightness)
+    }
+
+    fun startAudio() = synth.start()
+    fun stopAudio() = synth.stop()
+
+    override fun onCleared() {
+        synth.stop()
+    }
 
     val channels = mutableStateListOf(
         ChannelState(1, "Strings", ChannelColors[0], 0.78f, 0f, 1f),
@@ -55,9 +122,6 @@ class PadKeysState {
         Song("Song 3", "Patch 3"),
     )
     var selectedSong by mutableIntStateOf(0)
-
-    // Drone pads (-1 = walang naka-on)
-    var dronePad by mutableIntStateOf(-1)
 
     // Scenes
     val scenes = mutableStateListOf<SceneSnapshot?>(null, null, null, null)
