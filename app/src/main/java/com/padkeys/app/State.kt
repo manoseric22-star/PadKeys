@@ -149,6 +149,7 @@ class PadKeysState : ViewModel() {
         SceneState("Scene 1"), SceneState("Scene 2"), SceneState("Scene 3"), SceneState("Scene 4"),
     )
     var scene by mutableIntStateOf(0)
+    var padSettingsOpen by mutableStateOf(false) // Pad Settings ng Ambient Pads
     var scenePopup by mutableIntStateOf(-1) // index ng scene na may bukas na options
 
     // Layers editor
