@@ -17,7 +17,13 @@ import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.input.pointer.PointerId
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.drawText
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import kotlin.math.abs
 import kotlin.math.roundToInt
 
@@ -54,6 +60,15 @@ class KeyLayout(val first: Int, val last: Int) {
         return whites[i]
     }
 
+    /** Index (sa puting keys) ng simula at dulo ng saklaw lo..hi (MIDI notes), nakakabit sa layout. */
+    fun whiteSpan(lo: Int, hi: Int): Pair<Int, Int> {
+        var a = whites.indexOfFirst { it >= lo }
+        if (a < 0) a = whites.lastIndex
+        var b = whites.indexOfLast { it <= hi }
+        if (b < a) b = a
+        return a to b
+    }
+
     companion object {
         fun forKeyCount(count: Int): KeyLayout = when (count) {
             88 -> KeyLayout(21, 108) // A0 - C8
@@ -69,6 +84,8 @@ fun PianoKeyboard(state: PadKeysState, modifier: Modifier = Modifier) {
     val shape = RoundedCornerShape(10.dp)
 
     LaunchedEffect(layout) { state.pressed = emptySet() }
+    val measurer = rememberTextMeasurer()
+    val labelStyle = TextStyle(color = Color(0xFF5A6678), fontSize = 9.sp, fontWeight = FontWeight.SemiBold)
 
     Box(
         modifier
@@ -138,13 +155,29 @@ fun PianoKeyboard(state: PadKeysState, modifier: Modifier = Modifier) {
                 drawRoundRect(C.BtnBorder, topLeft, Size(blackW, blackH), corner, style = Stroke(edge))
             }
 
+            // Pangalan ng octave sa bawat C (C2, C3...) para tugma sa Layers editor
+            layout.whites.forEachIndexed { i, n ->
+                if (n % 12 == 0) {
+                    val label = "C${n / 12 - 1}"
+                    val tl = measurer.measure(label, labelStyle)
+                    drawText(
+                        tl,
+                        topLeft = Offset(
+                            i * whiteW + (whiteW - tl.size.width) / 2f,
+                            h - tl.size.height - 3.dp.toPx(),
+                        ),
+                    )
+                }
+            }
+
             // Layers editor: kulayan ang saklaw ng napiling channel
             if (state.layerMode) {
                 state.channels.getOrNull(state.layerSel)?.let { ch ->
+                    val (iLo, iHi) = layout.whiteSpan(ch.lo, ch.hi)
                     drawRect(
                         ch.color.copy(alpha = 0.4f),
-                        Offset(ch.lo.toFloat() / KEY_STEPS * w, 0f),
-                        Size((ch.hi - ch.lo).toFloat() / KEY_STEPS * w, h),
+                        Offset(iLo * whiteW, 0f),
+                        Size((iHi - iLo + 1) * whiteW, h),
                     )
                 }
             }
