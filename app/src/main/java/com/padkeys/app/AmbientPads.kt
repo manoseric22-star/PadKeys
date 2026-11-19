@@ -1,5 +1,6 @@
 package com.padkeys.app
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -29,15 +30,8 @@ import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
-import androidx.compose.ui.unit.IntOffset
-import androidx.compose.ui.unit.IntRect
-import androidx.compose.ui.unit.IntSize
-import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.compose.ui.window.Popup
-import androidx.compose.ui.window.PopupPositionProvider
-import androidx.compose.ui.window.PopupProperties
 import kotlin.math.roundToInt
 
 private val PadNoteNames = listOf("C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B")
@@ -45,8 +39,6 @@ private val PadNoteNames = listOf("C", "C#", "D", "D#", "E", "F", "F#", "G", "G#
 /** Ambient Pads card: C..B keys, settings icon sa taas-kanan, vertical pad volume. */
 @Composable
 fun AmbientPanel(state: PadKeysState, modifier: Modifier) {
-    var showSettings by remember { mutableStateOf(false) }
-
     Panel(modifier) {
         Row(
             Modifier.fillMaxSize().padding(12.dp),
@@ -115,7 +107,7 @@ fun AmbientPanel(state: PadKeysState, modifier: Modifier) {
                     Modifier
                         .size(44.dp)
                         .clip(RoundedCornerShape(8.dp))
-                        .clickable(role = Role.Button) { showSettings = !showSettings },
+                        .clickable(role = Role.Button) { state.padSettingsOpen = !state.padSettingsOpen },
                     contentAlignment = Alignment.Center,
                 ) {
                     SlidersIcon(Modifier.size(24.dp), C.Text)
@@ -135,68 +127,52 @@ fun AmbientPanel(state: PadKeysState, modifier: Modifier) {
                 )
             }
         }
-
-        if (showSettings) {
-            Popup(
-                popupPositionProvider = SidePopupPosition,
-                onDismissRequest = { showSettings = false },
-                properties = PopupProperties(focusable = true),
-            ) {
-                AmbientSettings(state, onClose = { showSettings = false })
-            }
-        }
     }
 }
 
-// Lalabas sa kanan ng Ambient Pads card, nakagitna nang patayo para kita lahat.
-private object SidePopupPosition : PopupPositionProvider {
-    override fun calculatePosition(
-        anchorBounds: IntRect,
-        windowSize: IntSize,
-        layoutDirection: LayoutDirection,
-        popupContentSize: IntSize,
-    ): IntOffset {
-        val gap = 8
-        val x = (anchorBounds.right + gap).coerceAtMost(windowSize.width - popupContentSize.width).coerceAtLeast(0)
-        val y = ((windowSize.height - popupContentSize.height) / 2).coerceAtLeast(0)
-        return IntOffset(x, y)
-    }
-}
-
+/** Pad Settings: nasa loob ng screen (hindi Popup window) kaya sumusunod sa scaling ng app. */
 @Composable
-private fun AmbientSettings(state: PadKeysState, onClose: () -> Unit) {
-    val shape = RoundedCornerShape(14.dp)
-    Column(
-        Modifier
-            .width(430.dp)
-            .background(C.Panel, shape)
-            .border(1.dp, C.BtnBorder, shape)
-            .padding(horizontal = 18.dp, vertical = 14.dp),
-        verticalArrangement = Arrangement.spacedBy(12.dp),
-    ) {
-        // Header
-        Row(Modifier.fillMaxWidth().height(36.dp), verticalAlignment = Alignment.CenterVertically) {
-            SectionLabel("Pad Settings")
-            Spacer(Modifier.weight(1f))
-            Box(
-                Modifier
-                    .size(36.dp)
-                    .clip(RoundedCornerShape(8.dp))
-                    .clickable(role = Role.Button, onClick = onClose),
-                contentAlignment = Alignment.Center,
-            ) { CloseIcon(Modifier.size(18.dp), C.Muted) }
-        }
-        Box(Modifier.fillMaxWidth().height(1.dp).background(C.PanelBorder))
+fun AmbientSettingsDialog(state: PadKeysState) {
+    val close = { state.padSettingsOpen = false }
+    BackHandler(onBack = close)
 
-        // Sound presets: 3 x 2, pangalan lang
-        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            SectionLabel("Sound")
+    Scrim(alpha = 0.45f) {
+        val shape = RoundedCornerShape(12.dp)
+        Column(
+            Modifier
+                .width(340.dp)
+                .background(C.Panel, shape)
+                .border(1.dp, C.BtnBorder, shape)
+                .padding(horizontal = 14.dp, vertical = 10.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            Row(Modifier.fillMaxWidth().height(32.dp), verticalAlignment = Alignment.CenterVertically) {
+                SectionLabel("Pad Settings")
+                Spacer(Modifier.weight(1f))
+                Box(
+                    Modifier
+                        .size(32.dp)
+                        .clip(RoundedCornerShape(8.dp))
+                        .clickable(role = Role.Button, onClick = close),
+                    contentAlignment = Alignment.Center,
+                ) { CloseIcon(Modifier.size(16.dp), C.Muted) }
+            }
+            Box(Modifier.fillMaxWidth().height(1.dp).background(C.PanelBorder))
+
+            Text(
+                "SOUND",
+                color = C.Muted,
+                fontFamily = Condensed,
+                fontWeight = FontWeight.Bold,
+                fontSize = 12.sp,
+                letterSpacing = 1.5.sp,
+            )
             for (row in PadPreset.entries.chunked(3)) {
-                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                     for (p in row) {
                         val on = state.preset == p
                         Btn(
-                            Modifier.weight(1f).height(44.dp),
+                            Modifier.weight(1f).height(36.dp),
                             selected = on,
                             base = C.BtnSmall,
                             onClick = { state.preset = p },
@@ -205,19 +181,20 @@ private fun AmbientSettings(state: PadKeysState, onClose: () -> Unit) {
                                 p.label,
                                 color = if (on) C.Ink else C.Text,
                                 fontWeight = FontWeight.SemiBold,
-                                fontSize = 13.sp,
-                                maxLines = 1,
+                                fontSize = 11.sp,
+                                maxLines = 2,
+                                lineHeight = 13.sp,
                                 textAlign = TextAlign.Center,
                             )
                         }
                     }
                 }
             }
-        }
-        Box(Modifier.fillMaxWidth().height(1.dp).background(C.PanelBorder))
+            Box(Modifier.fillMaxWidth().height(1.dp).background(C.PanelBorder))
 
-        SettingSlider("Tone", "Warm", "Bright", state.tone) { state.tone = it }
-        SettingSlider("Brightness", "Soft", "Shimmer", state.brightness) { state.brightness = it }
+            SettingSlider("Tone", "Warm", "Bright", state.tone) { state.tone = it }
+            SettingSlider("Brightness", "Soft", "Shimmer", state.brightness) { state.brightness = it }
+        }
     }
 }
 
@@ -231,20 +208,27 @@ private fun SettingSlider(
 ) {
     Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-            SectionLabel(label)
+            Text(
+                label.uppercase(),
+                color = C.Muted,
+                fontFamily = Condensed,
+                fontWeight = FontWeight.Bold,
+                fontSize = 12.sp,
+                letterSpacing = 1.5.sp,
+            )
             Spacer(Modifier.weight(1f))
             Text(
                 (value * 100).roundToInt().toString(),
                 color = C.Text,
-                fontSize = 13.sp,
+                fontSize = 12.sp,
                 fontWeight = FontWeight.SemiBold,
             )
         }
         HFader(value, onChange, C.Accent, Modifier.fillMaxWidth().height(28.dp))
         Row(Modifier.fillMaxWidth()) {
-            Text(low, color = C.Muted, fontSize = 10.sp)
+            Text(low, color = C.Muted, fontSize = 9.sp)
             Spacer(Modifier.weight(1f))
-            Text(high, color = C.Muted, fontSize = 10.sp)
+            Text(high, color = C.Muted, fontSize = 9.sp)
         }
     }
 }
