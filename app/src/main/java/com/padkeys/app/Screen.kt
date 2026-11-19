@@ -61,7 +61,7 @@ fun PadKeysScreen(state: PadKeysState) {
                 verticalArrangement = Arrangement.spacedBy(8.dp),
             ) {
                 SetlistPanel(state, Modifier.weight(214f).fillMaxWidth())
-                DronePanel(state, Modifier.weight(226f).fillMaxWidth())
+                AmbientPanel(state, Modifier.weight(226f).fillMaxWidth())
             }
             Column(
                 Modifier.weight(0.73f).fillMaxHeight(),
@@ -211,67 +211,6 @@ private fun TextAction(label: String, onClick: () -> Unit) {
         contentAlignment = Alignment.Center,
     ) {
         Text(label, color = Color(0xFFB9C2E6), fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
-    }
-}
-
-// ---------------------------------------------------------------- Drone pads
-
-private val DroneNotes = listOf("C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B")
-
-@Composable
-fun DronePanel(state: PadKeysState, modifier: Modifier) {
-    Panel(modifier) {
-        Column(
-            Modifier.fillMaxSize().padding(12.dp),
-            verticalArrangement = Arrangement.spacedBy(6.dp),
-        ) {
-            Row(
-                Modifier.fillMaxWidth().height(44.dp),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                SectionLabel("Drone Pads")
-                Box(
-                    Modifier
-                        .size(44.dp)
-                        .clip(RoundedCornerShape(8.dp))
-                        .clickable(role = Role.Button) { /* TODO: settings ng drone pads */ },
-                    contentAlignment = Alignment.Center,
-                ) {
-                    SlidersIcon(Modifier.size(24.dp), C.Text)
-                }
-            }
-
-            Column(
-                Modifier.weight(1f).fillMaxWidth(),
-                verticalArrangement = Arrangement.spacedBy(6.dp),
-            ) {
-                for (row in 0 until 3) {
-                    Row(
-                        Modifier.weight(1f).fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(6.dp),
-                    ) {
-                        for (col in 0 until 4) {
-                            val idx = row * 4 + col
-                            val on = state.dronePad == idx
-                            Btn(
-                                Modifier.weight(1f).fillMaxHeight(),
-                                selected = on,
-                                onClick = { state.dronePad = if (on) -1 else idx },
-                            ) {
-                                Text(
-                                    DroneNotes[idx],
-                                    color = if (on) C.Ink else C.Text,
-                                    fontFamily = Condensed,
-                                    fontWeight = FontWeight.Bold,
-                                    fontSize = 24.sp,
-                                )
-                            }
-                        }
-                    }
-                }
-            }
-        }
     }
 }
 
