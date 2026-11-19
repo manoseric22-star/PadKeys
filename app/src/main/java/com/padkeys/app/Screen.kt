@@ -43,39 +43,58 @@ import kotlin.math.roundToInt
 
 @Composable
 fun PadKeysScreen(state: PadKeysState) {
-    Column(
-        Modifier
-            .fillMaxSize()
-            .background(C.Bg)
-            .padding(12.dp),
-        verticalArrangement = Arrangement.spacedBy(8.dp),
-    ) {
-        TopBar(state, Modifier.fillMaxWidth().height(56.dp))
-
-        Row(
-            Modifier.fillMaxWidth().weight(1f),
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
+    Box(Modifier.fillMaxSize().background(C.Bg)) {
+        Column(
+            Modifier
+                .fillMaxSize()
+                .padding(12.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp),
         ) {
-            Column(
-                Modifier.weight(0.27f).fillMaxHeight(),
-                verticalArrangement = Arrangement.spacedBy(8.dp),
+            TopBar(state, Modifier.fillMaxWidth().height(56.dp))
+
+            Row(
+                Modifier.fillMaxWidth().weight(1f),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
             ) {
-                SetlistPanel(state, Modifier.weight(214f).fillMaxWidth())
-                AmbientPanel(state, Modifier.weight(226f).fillMaxWidth())
+                Column(
+                    Modifier.weight(0.27f).fillMaxHeight(),
+                    verticalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    SetlistPanel(state, Modifier.weight(214f).fillMaxWidth())
+                    AmbientPanel(state, Modifier.weight(226f).fillMaxWidth())
+                }
+                Column(
+                    Modifier.weight(0.73f).fillMaxHeight(),
+                    verticalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    ChannelsPanel(state, Modifier.weight(1f).fillMaxWidth())
+                    ScenesBar(state, Modifier.fillMaxWidth().height(64.dp))
+                }
             }
-            Column(
-                Modifier.weight(0.73f).fillMaxHeight(),
-                verticalArrangement = Arrangement.spacedBy(8.dp),
-            ) {
-                ChannelsPanel(state, Modifier.weight(1f).fillMaxWidth())
-                ScenesBar(state, Modifier.fillMaxWidth().height(64.dp))
+
+            // Kapag naka-hide ang keyboard, lumalaki ang ibang panels para punuin ang espasyo.
+            if (state.keyboardVisible) {
+                BottomSection(state, Modifier.fillMaxWidth().height(176.dp))
             }
         }
 
-        // Kapag naka-hide ang keyboard, lumalaki ang ibang panels para punuin ang espasyo.
-        if (state.keyboardVisible) {
-            BottomSection(state, Modifier.fillMaxWidth().height(176.dp))
+        // Layers editor: nasa ibabaw ng gitnang bahagi, hanggang sa taas ng virtual keys
+        if (state.layerMode) {
+            LayerEditor(
+                state,
+                Modifier
+                    .fillMaxSize()
+                    .padding(
+                        start = 12.dp,
+                        end = 12.dp,
+                        top = 76.dp,
+                        bottom = if (state.keyboardVisible) 196.dp else 12.dp,
+                    ),
+            )
         }
+
+        if (state.scenePopup >= 0) SceneOptions(state)
+        if (state.channelPopup >= 0) SoundLibraryDialog(state)
     }
 }
 
@@ -241,8 +260,8 @@ fun ChannelsPanel(state: PadKeysState, modifier: Modifier) {
                     state = listState,
                     horizontalArrangement = Arrangement.spacedBy(8.dp),
                 ) {
-                    itemsIndexed(state.channels, key = { _, ch -> ch.number }) { _, ch ->
-                        ChannelStrip(ch, Modifier.width(stripWidth).fillMaxHeight())
+                    itemsIndexed(state.channels, key = { _, ch -> ch.uid }) { idx, ch ->
+                        ChannelStrip(ch, Modifier.width(stripWidth).fillMaxHeight()) { state.channelPopup = idx }
                     }
                 }
                 AddChannelTile(count, Modifier.width(56.dp).fillMaxHeight()) { state.addChannel() }
@@ -284,7 +303,7 @@ private fun AddChannelTile(count: Int, modifier: Modifier, onClick: () -> Unit) 
 }
 
 @Composable
-fun ChannelStrip(ch: ChannelState, modifier: Modifier) {
+fun ChannelStrip(ch: ChannelState, modifier: Modifier, onOpen: () -> Unit) {
     val shape = RoundedCornerShape(8.dp)
     Column(
         modifier
@@ -294,7 +313,10 @@ fun ChannelStrip(ch: ChannelState, modifier: Modifier) {
             .padding(start = 8.dp, end = 8.dp, top = 12.dp, bottom = 8.dp),
         verticalArrangement = Arrangement.spacedBy(8.dp),
     ) {
-        Column(Modifier.height(44.dp), verticalArrangement = Arrangement.Center) {
+        Column(
+            Modifier.fillMaxWidth().height(44.dp).clickable(role = Role.Button, onClick = onOpen),
+            verticalArrangement = Arrangement.Center,
+        ) {
             Text(
                 "CH ${ch.number}",
                 color = ch.color,
@@ -331,95 +353,6 @@ fun ChannelStrip(ch: ChannelState, modifier: Modifier) {
     }
 }
 
-// ---------------------------------------------------------------- Scenes
-
-@Composable
-fun ScenesBar(state: PadKeysState, modifier: Modifier) {
-    Panel(modifier) {
-        Row(
-            Modifier.fillMaxSize().padding(start = 16.dp, end = 12.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
-        ) {
-            SectionLabel("Scenes", Modifier.padding(end = 8.dp))
-
-            state.scenes.forEachIndexed { i, _ ->
-                Btn(
-                    Modifier.width(56.dp).height(44.dp),
-                    selected = state.scene == i,
-                    onClick = { state.selectScene(i) },
-                ) {
-                    Text(
-                        "${i + 1}",
-                        color = if (state.scene == i) C.Ink else C.Text,
-                        fontSize = 14.sp,
-                        fontWeight = FontWeight.SemiBold,
-                    )
-                }
-            }
-
-            Spacer(Modifier.weight(1f))
-
-            // Add | Save
-            val pill = RoundedCornerShape(8.dp)
-            Row(
-                Modifier
-                    .height(44.dp)
-                    .clip(pill)
-                    .background(C.Btn)
-                    .border(1.dp, C.BtnBorder, pill),
-            ) {
-                PillAction("Add") { state.addScene() }
-                Box(Modifier.width(1.dp).fillMaxHeight().background(C.BtnBorder))
-                PillAction("Save") { state.saveScene() }
-            }
-
-            Spacer(Modifier.width(8.dp))
-
-            // Layers
-            val big = RoundedCornerShape(12.dp)
-            Box(
-                Modifier
-                    .size(48.dp)
-                    .clip(big)
-                    .background(Brush.verticalGradient(listOf(Color(0xFF2A3A5E), Color(0xFF17213A))))
-                    .border(1.dp, Color(0xFF3A4C78), big)
-                    .clickable(role = Role.Button) { /* TODO: layers editor */ },
-                contentAlignment = Alignment.Center,
-            ) {
-                LayersIcon(Modifier.size(28.dp), Color.White)
-            }
-
-            // Keyboard: i-tap para itago o ipakita ang virtual keys, layer strips, Pitch, Mod at 88/61/25
-            val kbVisible = state.keyboardVisible
-            Box(
-                Modifier
-                    .size(48.dp)
-                    .clip(big)
-                    .background(if (kbVisible) Color(0x806EB4FF) else Color(0x1F6EB4FF))
-                    .border(1.dp, if (kbVisible) Color(0x9987BEFF) else Color(0x4D87BEFF), big)
-                    .clickable(role = Role.Button) { state.keyboardVisible = !state.keyboardVisible },
-                contentAlignment = Alignment.Center,
-            ) {
-                PianoIcon(Modifier.size(30.dp).alpha(if (kbVisible) 1f else 0.45f))
-            }
-        }
-    }
-}
-
-@Composable
-private fun PillAction(label: String, onClick: () -> Unit) {
-    Box(
-        Modifier
-            .width(72.dp)
-            .fillMaxHeight()
-            .clickable(role = Role.Button, onClick = onClick),
-        contentAlignment = Alignment.Center,
-    ) {
-        Text(label, color = C.Text, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
-    }
-}
-
 // ---------------------------------------------------------------- Pitch / Mod / Layers preview / Keys
 
 @Composable
@@ -428,13 +361,7 @@ fun BottomSection(state: PadKeysState, modifier: Modifier) {
         Wheel("PITCH", state.pitch, { state.pitch = it }, springTo = 0.5f, modifier = Modifier.width(52.dp).fillMaxHeight())
         Wheel("MOD", state.mod, { state.mod = it }, springTo = null, modifier = Modifier.width(52.dp).fillMaxHeight())
 
-        Column(
-            Modifier.weight(1f).fillMaxHeight(),
-            verticalArrangement = Arrangement.spacedBy(6.dp),
-        ) {
-            LayerBars(state, Modifier.fillMaxWidth().height(38.dp))
-            PianoKeyboard(state, Modifier.weight(1f).fillMaxWidth())
-        }
+        PianoKeyboard(state, Modifier.weight(1f).fillMaxHeight())
 
         Column(
             Modifier.width(52.dp).fillMaxHeight(),
@@ -494,27 +421,5 @@ private fun Wheel(
             fontSize = 13.sp,
             letterSpacing = 1.sp,
         )
-    }
-}
-
-@Composable
-private fun LayerBars(state: PadKeysState, modifier: Modifier) {
-    Canvas(modifier) {
-        val n = state.channels.size
-        // Kapag marami ang channel, numinipis ang bawat guhit para kumasya sa taas.
-        val gap = if (n > 5) 1.dp.toPx() else 2.dp.toPx()
-        val barH = ((size.height - (n - 1) * gap) / n).coerceIn(1.dp.toPx(), 6.dp.toPx())
-        val total = n * barH + (n - 1) * gap
-        val top = (size.height - total) / 2f
-        state.channels.forEachIndexed { i, ch ->
-            val y = top + i * (barH + gap)
-            drawRoundRect(C.Strip, Offset(0f, y), Size(size.width, barH), CornerRadius(barH / 2f))
-            drawRoundRect(
-                ch.color,
-                Offset(ch.rangeStart * size.width, y),
-                Size((ch.rangeEnd - ch.rangeStart) * size.width, barH),
-                CornerRadius(barH / 2f),
-            )
-        }
     }
 }
