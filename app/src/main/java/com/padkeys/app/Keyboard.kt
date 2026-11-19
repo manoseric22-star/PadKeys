@@ -60,6 +60,16 @@ class KeyLayout(val first: Int, val last: Int) {
         return whites[i]
     }
 
+    val count: Int get() = last - first + 1
+
+    /** Index (0 = unang key, kasama ang sharps) ng simula at dulo ng saklaw lo..hi (MIDI notes). */
+    fun noteSpan(lo: Int, hi: Int): Pair<Int, Int> {
+        val a = lo.coerceIn(first, last) - first
+        var b = hi.coerceIn(first, last) - first
+        if (b < a) b = a
+        return a to b
+    }
+
     /** Index (sa puting keys) ng simula at dulo ng saklaw lo..hi (MIDI notes), nakakabit sa layout. */
     fun whiteSpan(lo: Int, hi: Int): Pair<Int, Int> {
         var a = whites.indexOfFirst { it >= lo }
@@ -170,15 +180,19 @@ fun PianoKeyboard(state: PadKeysState, modifier: Modifier = Modifier) {
                 }
             }
 
-            // Layers editor: kulayan ang saklaw ng napiling channel
+            // Layers editor: kulayan ang bawat key (puti at itim) na nasa saklaw ng napiling channel
             if (state.layerMode) {
                 state.channels.getOrNull(state.layerSel)?.let { ch ->
-                    val (iLo, iHi) = layout.whiteSpan(ch.lo, ch.hi)
-                    drawRect(
-                        ch.color.copy(alpha = 0.4f),
-                        Offset(iLo * whiteW, 0f),
-                        Size((iHi - iLo + 1) * whiteW, h),
-                    )
+                    val tint = ch.color
+                    layout.whites.forEachIndexed { i, n ->
+                        if (n in ch.lo..ch.hi) drawRect(tint.copy(alpha = 0.45f), Offset(i * whiteW, 0f), Size(whiteW, h))
+                    }
+                    layout.blacks.forEach { n ->
+                        if (n in ch.lo..ch.hi) {
+                            val cx = layout.boundaryOfBlack(n) * whiteW
+                            drawRoundRect(tint.copy(alpha = 0.75f), Offset(cx - blackW / 2f, 0f), Size(blackW, blackH), corner)
+                        }
+                    }
                 }
             }
         }
