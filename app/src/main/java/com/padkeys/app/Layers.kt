@@ -4,6 +4,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectDragGestures
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -23,6 +24,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -35,25 +37,37 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import kotlin.math.roundToInt
 
-private fun noteName(idx: Int): String = "CDEFGAB"[idx % 7].toString() + (2 + idx / 7)
+
+/** Pangalan ng note, hal. 60 -> C4, 42 -> F#2 */
+private fun noteName(note: Int): String {
+    val names = arrayOf("C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B")
+    return names[note % 12] + (note / 12 - 1)
+}
 
 private const val MOVE = 0
 private const val LOW = 1
 private const val HIGH = 2
 
-/** Layers editor: i-drag ang bar o ang handles para itakda ang saklaw ng bawat channel sa keyboard. */
+/** Layers editor: tap ang strip para piliin, i-drag ang bar o ang handles para itakda ang saklaw sa keyboard. */
 @Composable
 fun LayerEditor(state: PadKeysState, modifier: Modifier) {
+    // Parehong layout ng virtual keys sa ibaba, kaya laging tugma (25 / 61 / 88)
+    val layout = remember(state.keyCount) { KeyLayout.forKeyCount(state.keyCount) }
+    val steps = layout.whites.size
+
     Panel(modifier) {
         Column(Modifier.fillMaxSize()) {
-            // Header
             Row(
                 Modifier.fillMaxWidth().height(64.dp).padding(start = 20.dp, end = 8.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
                     SectionLabel("Layers")
-                    Text("Drag the handles to set the key range of each channel.", color = C.Muted, fontSize = 12.sp)
+                    Text(
+                        "Tap a strip to select it, then drag its handles to set the key range.",
+                        color = C.Muted,
+                        fontSize = 12.sp,
+                    )
                 }
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     val big = RoundedCornerShape(12.dp)
@@ -84,19 +98,22 @@ fun LayerEditor(state: PadKeysState, modifier: Modifier) {
                     val trackDp = maxWidth
 
                     Column(Modifier.fillMaxWidth()) {
+                        // Ruler: C1..C8 sa posisyon ng bawat C sa keyboard
                         Box(Modifier.fillMaxWidth().height(22.dp)) {
-                            for (k in 0..5) {
-                                Text(
-                                    "C${2 + k}",
-                                    color = C.Muted,
-                                    fontSize = 11.sp,
-                                    fontWeight = FontWeight.SemiBold,
-                                    modifier = Modifier.offset(x = trackDp * (k * 7f / KEY_STEPS) - 8.dp),
-                                )
+                            layout.whites.forEachIndexed { i, n ->
+                                if (n % 12 == 0) {
+                                    Text(
+                                        "C${n / 12 - 1}",
+                                        color = C.Muted,
+                                        fontSize = 11.sp,
+                                        fontWeight = FontWeight.SemiBold,
+                                        modifier = Modifier.offset(x = trackDp * (i.toFloat() / steps)),
+                                    )
+                                }
                             }
                         }
                         state.channels.forEachIndexed { i, ch ->
-                            LayerRow(state, i, ch, trackPx, trackDp)
+                            LayerRow(state, layout, i, ch, trackPx, trackDp)
                         }
                     }
                 }
@@ -108,30 +125,41 @@ fun LayerEditor(state: PadKeysState, modifier: Modifier) {
 @Composable
 private fun LayerRow(
     state: PadKeysState,
+    layout: KeyLayout,
     index: Int,
     ch: ChannelState,
     trackPx: Float,
     trackDp: Dp,
 ) {
+    val steps = layout.whites.size
     val selected = state.layerSel == index
-    val left = trackDp * (ch.lo.toFloat() / KEY_STEPS)
-    val width = trackDp * ((ch.hi - ch.lo).toFloat() / KEY_STEPS)
+    val (iLo, iHi) = layout.whiteSpan(ch.lo, ch.hi)
+    val left = trackDp * (iLo.toFloat() / steps)
+    val width = trackDp * ((iHi - iLo + 1).toFloat() / steps)
     val right = left + width
     val barShape = RoundedCornerShape(8.dp)
+    val select = { state.layerSel = index }
 
-    Box(Modifier.fillMaxWidth().height(54.dp)) {
-        // Mga octave guide
-        for (k in 0..5) {
-            Box(
-                Modifier
-                    .offset(x = trackDp * (k * 7f / KEY_STEPS))
-                    .width(1.dp)
-                    .fillMaxHeight()
-                    .background(Color(0x17FFFFFF)),
-            )
+    Box(
+        Modifier
+            .fillMaxWidth()
+            .height(54.dp)
+            .pointerInput(index) { detectTapGestures(onTap = { select() }) },
+    ) {
+        // Guhit sa bawat C
+        layout.whites.forEachIndexed { i, n ->
+            if (n % 12 == 0) {
+                Box(
+                    Modifier
+                        .offset(x = trackDp * (i.toFloat() / steps))
+                        .width(1.dp)
+                        .fillMaxHeight()
+                        .background(Color(0x17FFFFFF)),
+                )
+            }
         }
 
-        // Bar (drag = ilipat ang buong saklaw)
+        // Bar: tap = piliin, drag = ilipat ang buong saklaw
         Row(
             Modifier
                 .offset(x = left, y = 6.dp)
@@ -140,11 +168,12 @@ private fun LayerRow(
                 .clip(barShape)
                 .background(ch.color)
                 .then(if (selected) Modifier.border(2.dp, Color(0xD9FFFFFF), barShape) else Modifier)
-                .dragRange(trackPx, ch, MOVE) { state.layerSel = index },
+                .pointerInput(index) { detectTapGestures(onTap = { select() }) }
+                .dragRange(trackPx, layout, ch, MOVE, select),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.CenterHorizontally),
         ) {
-            NoteChip(noteName(ch.lo))
+            NoteChip(noteName(layout.whites[iLo]))
             Text(
                 ch.name.ifBlank { "Empty" },
                 color = C.Ink,
@@ -153,11 +182,11 @@ private fun LayerRow(
                 maxLines = 1,
                 modifier = Modifier.weight(1f, fill = false),
             )
-            NoteChip(noteName(ch.hi - 1))
+            NoteChip(noteName(layout.whites[iHi]))
         }
 
-        Handle(ch, trackPx, LOW, left, selected) { state.layerSel = index }
-        Handle(ch, trackPx, HIGH, right, selected) { state.layerSel = index }
+        Handle(trackPx, layout, ch, LOW, left, selected, select)
+        Handle(trackPx, layout, ch, HIGH, right, selected, select)
     }
 }
 
@@ -174,8 +203,9 @@ private fun NoteChip(text: String) {
 
 @Composable
 private fun Handle(
-    ch: ChannelState,
     trackPx: Float,
+    layout: KeyLayout,
+    ch: ChannelState,
     mode: Int,
     x: Dp,
     selected: Boolean,
@@ -186,7 +216,7 @@ private fun Handle(
         Modifier
             .offset(x = x - 22.dp, y = 5.dp)
             .size(44.dp)
-            .dragRange(trackPx, ch, mode, onSelect),
+            .dragRange(trackPx, layout, ch, mode, onSelect),
         contentAlignment = Alignment.Center,
     ) {
         Box(
@@ -200,34 +230,44 @@ private fun Handle(
     }
 }
 
+/** Ang saklaw ay nasa puting key. Kapag nasa dulo ng keyboard, ginagawang 0/127 para sumunod sa 25/61/88. */
+private fun ChannelState.setSpan(layout: KeyLayout, iLo: Int, iHi: Int) {
+    val last = layout.whites.lastIndex
+    lo = if (iLo <= 0) 0 else layout.whites[iLo]
+    hi = if (iHi >= last) 127 else layout.whites[iHi]
+}
+
 private fun Modifier.dragRange(
     trackPx: Float,
+    layout: KeyLayout,
     ch: ChannelState,
     mode: Int,
     onSelect: () -> Unit,
-): Modifier = pointerInput(trackPx, mode, ch) {
+): Modifier = pointerInput(trackPx, mode, ch, layout) {
+    val steps = layout.whites.size
     var startLo = 0
     var startHi = 0
     var acc = 0f
     detectDragGestures(
         onDragStart = {
-            startLo = ch.lo
-            startHi = ch.hi
+            val span = layout.whiteSpan(ch.lo, ch.hi)
+            startLo = span.first
+            startHi = span.second
             acc = 0f
             onSelect()
         },
     ) { change, drag ->
         change.consume()
         acc += drag.x
-        val dk = (acc / trackPx * KEY_STEPS).roundToInt()
+        val dk = (acc / trackPx * steps).roundToInt()
         when (mode) {
             MOVE -> {
                 val w = startHi - startLo
-                val lo = (startLo + dk).coerceIn(0, KEY_STEPS - w)
-                ch.setRange(lo, lo + w)
+                val lo = (startLo + dk).coerceIn(0, steps - 1 - w)
+                ch.setSpan(layout, lo, lo + w)
             }
-            LOW -> ch.setRange((startLo + dk).coerceIn(0, startHi - 1), startHi)
-            else -> ch.setRange(startLo, (startHi + dk).coerceIn(startLo + 1, KEY_STEPS))
+            LOW -> ch.setSpan(layout, (startLo + dk).coerceIn(0, startHi), startHi)
+            else -> ch.setSpan(layout, startLo, (startHi + dk).coerceIn(startLo, steps - 1))
         }
     }
 }
