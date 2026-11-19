@@ -6,27 +6,47 @@ import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
+import android.os.SystemClock
 import androidx.compose.ui.graphics.Color
 import androidx.lifecycle.ViewModel
+import androidx.lifecycle.viewModelScope
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 
 const val MAX_CHANNELS = 16
+const val MAX_SCENES = 16
+const val KEY_STEPS = 36 // saklaw ng layers: 36 puting key (C2 hanggang dulo ng 61 keys)
+
+private var nextChannelUid = 0
 
 class ChannelState(
-    val number: Int,
-    val name: String,
-    val color: Color,
-    initialVolume: Float,
-    initialRangeStart: Float,
-    initialRangeEnd: Float,
+    initialNumber: Int,
+    initialVolume: Float = 0.7f,
+    startKey: Int = 0,
+    endKey: Int = KEY_STEPS,
 ) {
+    val uid = nextChannelUid++
+    var number by mutableIntStateOf(initialNumber)
+    val color: Color get() = ChannelColors[(number - 1) % ChannelColors.size]
+
+    // Walang instrument muna = blangko ang pangalan
+    var name by mutableStateOf("")
+    var instrumentId by mutableStateOf<String?>(null)
+
     var volume by mutableFloatStateOf(initialVolume)
     var mute by mutableStateOf(false)
     var solo by mutableStateOf(false)
     var fx by mutableStateOf(false)
 
-    // Saklaw ng layer sa keyboard (0f = pinakakaliwa, 1f = pinakakanan)
-    var rangeStart by mutableFloatStateOf(initialRangeStart)
-    var rangeEnd by mutableFloatStateOf(initialRangeEnd)
+    // Saklaw ng layer sa keyboard, sa puting key: lo ..< hi (0..36)
+    var lo by mutableIntStateOf(startKey)
+    var hi by mutableIntStateOf(endKey)
+
+    fun setRange(newLo: Int, newHi: Int) {
+        lo = newLo.coerceIn(0, KEY_STEPS - 1)
+        hi = newHi.coerceIn(lo + 1, KEY_STEPS)
+    }
 }
 
 class Song(val title: String, val patch: String)
@@ -37,6 +57,12 @@ class SceneSnapshot(
     val solos: List<Boolean>,
     val fx: List<Boolean>,
 )
+
+class SceneState(name: String, transition: Float = 1f) {
+    var name by mutableStateOf(name)
+    var transition by mutableFloatStateOf(transition) // segundo ng fade papunta sa scene na ito
+    var snapshot: SceneSnapshot? = null
+}
 
 class PadKeysState : ViewModel() {
     // ---- Audio engine (Ambient Pads). Nakatali sa ViewModel kaya hindi nauulit kapag nag-rotate.
@@ -107,12 +133,13 @@ class PadKeysState : ViewModel() {
         synth.stop()
     }
 
+    // Lahat ng channel ay walang instrument muna.
     val channels = mutableStateListOf(
-        ChannelState(1, "Strings", ChannelColors[0], 0.78f, 0f, 1f),
-        ChannelState(2, "Pad", ChannelColors[1], 0.62f, 0f, 0.5f),
-        ChannelState(3, "Piano", ChannelColors[2], 0.85f, 0.5f, 1f),
-        ChannelState(4, "Bass", ChannelColors[3], 0.54f, 0f, 0.35f),
-        ChannelState(5, "Synth Lead", ChannelColors[4], 0.70f, 0.6f, 1f),
+        ChannelState(1, 0.78f, 0, 36),
+        ChannelState(2, 0.62f, 0, 18),
+        ChannelState(3, 0.85f, 18, 36),
+        ChannelState(4, 0.54f, 0, 13),
+        ChannelState(5, 0.70f, 22, 36),
     )
 
     // Setlist (Song + Patch)
@@ -124,8 +151,19 @@ class PadKeysState : ViewModel() {
     var selectedSong by mutableIntStateOf(0)
 
     // Scenes
-    val scenes = mutableStateListOf<SceneSnapshot?>(null, null, null, null)
+    val scenes = mutableStateListOf(
+        SceneState("Scene 1"), SceneState("Scene 2"), SceneState("Scene 3"), SceneState("Scene 4"),
+    )
     var scene by mutableIntStateOf(0)
+    var scenePopup by mutableIntStateOf(-1) // index ng scene na may bukas na options
+
+    // Layers editor
+    var layerMode by mutableStateOf(false)
+    var layerSel by mutableIntStateOf(0)
+
+    // Sound Library (popup kapag tinap ang channel)
+    val library = SoundLibrary()
+    var channelPopup by mutableIntStateOf(-1) // index ng channel na may bukas na library
 
     // Keyboard
     var keyboardVisible by mutableStateOf(true)
@@ -145,9 +183,15 @@ class PadKeysState : ViewModel() {
 
     fun addChannel() {
         if (channels.size >= MAX_CHANNELS) return
-        val n = channels.size + 1
-        // Walang instrument muna (blangko ang pangalan)
-        channels.add(ChannelState(n, "", ChannelColors[(n - 1) % ChannelColors.size], 0.7f, 0f, 1f))
+        channels.add(ChannelState(channels.size + 1))
+    }
+
+    fun deleteChannel(index: Int) {
+        if (channels.size <= 1 || index !in channels.indices) return
+        channels.removeAt(index)
+        channels.forEachIndexed { i, c -> c.number = i + 1 }
+        layerSel = 0
+        channelPopup = -1
     }
 
     fun prevSong() {
@@ -164,23 +208,45 @@ class PadKeysState : ViewModel() {
         selectedSong = songs.lastIndex
     }
 
+    private var fadeJob: Job? = null
+
+    /** Lumipat sa scene. May fade ng volume ayon sa Transition time ng scene. */
     fun selectScene(index: Int) {
+        if (index !in scenes.indices) return
         scene = index
-        scenes[index]?.let { s ->
-            channels.forEachIndexed { k, c ->
-                // Ang mga channel na idinagdag pagkatapos i-save ang scene ay hindi ginagalaw.
-                if (k < s.volumes.size) {
-                    c.volume = s.volumes[k]
-                    c.mute = s.mutes[k]
-                    c.solo = s.solos[k]
-                    c.fx = s.fx[k]
+        val target = scenes[index]
+        val snap = target.snapshot ?: return
+        fadeJob?.cancel()
+
+        val chs = channels.toList()
+        val from = chs.map { it.volume }
+        chs.forEachIndexed { k, c ->
+            if (k < snap.volumes.size) {
+                c.mute = snap.mutes[k]
+                c.solo = snap.solos[k]
+                c.fx = snap.fx[k]
+            }
+        }
+        val millis = target.transition * 1000f
+        if (millis <= 0f) {
+            chs.forEachIndexed { k, c -> if (k < snap.volumes.size) c.volume = snap.volumes[k] }
+            return
+        }
+        fadeJob = viewModelScope.launch {
+            val t0 = SystemClock.uptimeMillis()
+            while (true) {
+                val t = ((SystemClock.uptimeMillis() - t0) / millis).coerceIn(0f, 1f)
+                chs.forEachIndexed { k, c ->
+                    if (k < snap.volumes.size) c.volume = from[k] + (snap.volumes[k] - from[k]) * t
                 }
+                if (t >= 1f) break
+                delay(16)
             }
         }
     }
 
     fun saveScene() {
-        scenes[scene] = SceneSnapshot(
+        scenes[scene].snapshot = SceneSnapshot(
             volumes = channels.map { it.volume },
             mutes = channels.map { it.mute },
             solos = channels.map { it.solo },
@@ -189,9 +255,18 @@ class PadKeysState : ViewModel() {
     }
 
     fun addScene() {
-        if (scenes.size < 8) {
-            scenes.add(null)
-            scene = scenes.lastIndex
-        }
+        if (scenes.size >= MAX_SCENES) return
+        scenes.add(SceneState("Scene ${scenes.size + 1}"))
+        scene = scenes.lastIndex
+    }
+
+    fun deleteScene(index: Int) {
+        if (scenes.size <= 1 || index !in scenes.indices) return
+        scenes.removeAt(index)
+        scene = when {
+            scene > index -> scene - 1
+            else -> scene
+        }.coerceIn(0, scenes.lastIndex)
+        scenePopup = -1
     }
 }
