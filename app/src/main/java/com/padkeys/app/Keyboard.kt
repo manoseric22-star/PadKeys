@@ -137,6 +137,17 @@ fun PianoKeyboard(state: PadKeysState, modifier: Modifier = Modifier) {
                 drawRoundRect(if (n in pressed) C.Accent else C.BlackKey, topLeft, Size(blackW, blackH), corner)
                 drawRoundRect(C.BtnBorder, topLeft, Size(blackW, blackH), corner, style = Stroke(edge))
             }
+
+            // Layers editor: kulayan ang saklaw ng napiling channel
+            if (state.layerMode) {
+                state.channels.getOrNull(state.layerSel)?.let { ch ->
+                    drawRect(
+                        ch.color.copy(alpha = 0.4f),
+                        Offset(ch.lo.toFloat() / KEY_STEPS * w, 0f),
+                        Size((ch.hi - ch.lo).toFloat() / KEY_STEPS * w, h),
+                    )
+                }
+            }
         }
     }
 }
