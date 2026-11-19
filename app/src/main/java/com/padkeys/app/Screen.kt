@@ -93,6 +93,7 @@ fun PadKeysScreen(state: PadKeysState) {
             )
         }
 
+        if (state.padSettingsOpen) AmbientSettingsDialog(state)
         if (state.scenePopup >= 0) SceneOptions(state)
         if (state.channelPopup >= 0) SoundLibraryDialog(state)
     }
