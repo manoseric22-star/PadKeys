@@ -13,6 +13,7 @@ import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -30,6 +31,7 @@ import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import kotlin.math.roundToInt
@@ -130,9 +132,12 @@ fun AmbientPanel(state: PadKeysState, modifier: Modifier) {
     }
 }
 
-/** Pad Settings: nasa loob ng screen (hindi Popup window) kaya sumusunod sa scaling ng app. */
+/**
+ * Pad Settings: nasa loob ng screen. Kasing-lapad ng 3 channel at kasing-taas ng Channels panel;
+ * ang posisyon ay galing sa PadKeysScreen.
+ */
 @Composable
-fun AmbientSettingsDialog(state: PadKeysState) {
+fun AmbientSettingsDialog(state: PadKeysState, left: Dp, width: Dp, top: Dp, bottom: Dp) {
     val close = { state.padSettingsOpen = false }
     BackHandler(onBack = close)
 
@@ -140,22 +145,25 @@ fun AmbientSettingsDialog(state: PadKeysState) {
         val shape = RoundedCornerShape(12.dp)
         Column(
             Modifier
-                .width(340.dp)
+                .align(Alignment.TopStart)
+                .padding(start = left, top = top, bottom = bottom)
+                .width(width)
+                .fillMaxHeight()
                 .background(C.Panel, shape)
                 .border(1.dp, C.BtnBorder, shape)
-                .padding(horizontal = 14.dp, vertical = 10.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp),
+                .padding(horizontal = 18.dp, vertical = 12.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp),
         ) {
-            Row(Modifier.fillMaxWidth().height(32.dp), verticalAlignment = Alignment.CenterVertically) {
+            Row(Modifier.fillMaxWidth().height(36.dp), verticalAlignment = Alignment.CenterVertically) {
                 SectionLabel("Pad Settings")
                 Spacer(Modifier.weight(1f))
                 Box(
                     Modifier
-                        .size(32.dp)
+                        .size(36.dp)
                         .clip(RoundedCornerShape(8.dp))
                         .clickable(role = Role.Button, onClick = close),
                     contentAlignment = Alignment.Center,
-                ) { CloseIcon(Modifier.size(16.dp), C.Muted) }
+                ) { CloseIcon(Modifier.size(18.dp), C.Muted) }
             }
             Box(Modifier.fillMaxWidth().height(1.dp).background(C.PanelBorder))
 
@@ -167,33 +175,44 @@ fun AmbientSettingsDialog(state: PadKeysState) {
                 fontSize = 12.sp,
                 letterSpacing = 1.5.sp,
             )
-            for (row in PadPreset.entries.chunked(3)) {
-                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                    for (p in row) {
-                        val on = state.preset == p
-                        Btn(
-                            Modifier.weight(1f).height(36.dp),
-                            selected = on,
-                            base = C.BtnSmall,
-                            onClick = { state.preset = p },
-                        ) {
-                            Text(
-                                p.label,
-                                color = if (on) C.Ink else C.Text,
-                                fontWeight = FontWeight.SemiBold,
-                                fontSize = 11.sp,
-                                maxLines = 2,
-                                lineHeight = 13.sp,
-                                textAlign = TextAlign.Center,
-                            )
+            // Presets: lumalaki para punuin ang taas
+            Column(Modifier.weight(1f).fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                for (row in PadPreset.entries.chunked(3)) {
+                    Row(
+                        Modifier.weight(1f).fillMaxWidth().heightIn(max = 64.dp),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    ) {
+                        for (p in row) {
+                            val on = state.preset == p
+                            Btn(
+                                Modifier.weight(1f).fillMaxHeight(),
+                                selected = on,
+                                base = C.BtnSmall,
+                                onClick = { state.preset = p },
+                            ) {
+                                Text(
+                                    p.label,
+                                    color = if (on) C.Ink else C.Text,
+                                    fontWeight = FontWeight.SemiBold,
+                                    fontSize = 14.sp,
+                                    maxLines = 1,
+                                    textAlign = TextAlign.Center,
+                                )
+                            }
                         }
                     }
                 }
             }
             Box(Modifier.fillMaxWidth().height(1.dp).background(C.PanelBorder))
 
-            SettingSlider("Tone", "Warm", "Bright", state.tone) { state.tone = it }
-            SettingSlider("Brightness", "Soft", "Shimmer", state.brightness) { state.brightness = it }
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(24.dp)) {
+                Box(Modifier.weight(1f)) {
+                    SettingSlider("Tone", "Warm", "Bright", state.tone) { state.tone = it }
+                }
+                Box(Modifier.weight(1f)) {
+                    SettingSlider("Brightness", "Soft", "Shimmer", state.brightness) { state.brightness = it }
+                }
+            }
         }
     }
 }
