@@ -1,6 +1,9 @@
 package com.padkeys.app
 
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.LocalOverscrollConfiguration
+import androidx.compose.foundation.gestures.snapping.rememberSnapFlingBehavior
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -24,6 +27,7 @@ import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -43,7 +47,7 @@ import kotlin.math.roundToInt
 
 @Composable
 fun PadKeysScreen(state: PadKeysState) {
-    Box(Modifier.fillMaxSize().background(C.Bg)) {
+    BoxWithConstraints(Modifier.fillMaxSize().background(C.Bg)) {
         Column(
             Modifier
                 .fillMaxSize()
@@ -93,7 +97,21 @@ fun PadKeysScreen(state: PadKeysState) {
             )
         }
 
-        if (state.padSettingsOpen) AmbientSettingsDialog(state)
+        if (state.padSettingsOpen) {
+            // Parehong sukat ng 3 channel strips at ng Channels panel
+            val rowW = maxWidth - 24.dp - 8.dp
+            val rightW = rowW * 0.73f
+            val stripW = (rightW - 24.dp - 96.dp) / 5
+            val dialogW = stripW * 3 + 16.dp
+            val rightLeft = 12.dp + rowW * 0.27f + 8.dp
+            AmbientSettingsDialog(
+                state,
+                left = rightLeft + (rightW - dialogW) / 2,
+                width = dialogW,
+                top = 76.dp,
+                bottom = 12.dp + 72.dp + (if (state.keyboardVisible) 184.dp else 0.dp),
+            )
+        }
         if (state.scenePopup >= 0) SceneOptions(state)
         if (state.channelPopup >= 0) SoundLibraryDialog(state)
     }
@@ -236,6 +254,7 @@ private fun TextAction(label: String, onClick: () -> Unit) {
 
 // ---------------------------------------------------------------- Channel sliders
 
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun ChannelsPanel(state: PadKeysState, modifier: Modifier) {
     val listState = rememberLazyListState()
@@ -256,13 +275,17 @@ fun ChannelsPanel(state: PadKeysState, modifier: Modifier) {
                 Modifier.fillMaxSize(),
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
             ) {
-                LazyRow(
-                    Modifier.weight(1f).fillMaxHeight(),
-                    state = listState,
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                ) {
-                    itemsIndexed(state.channels, key = { _, ch -> ch.uid }) { idx, ch ->
-                        ChannelStrip(ch, Modifier.width(stripWidth).fillMaxHeight()) { state.channelPopup = idx }
+                // Walang "stretch" na overscroll; at snap fling para smooth at tumitigil sa dulo ng channel
+                CompositionLocalProvider(LocalOverscrollConfiguration provides null) {
+                    LazyRow(
+                        Modifier.weight(1f).fillMaxHeight(),
+                        state = listState,
+                        flingBehavior = rememberSnapFlingBehavior(listState),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    ) {
+                        itemsIndexed(state.channels, key = { _, ch -> ch.uid }) { idx, ch ->
+                            ChannelStrip(ch, Modifier.width(stripWidth).fillMaxHeight()) { state.channelPopup = idx }
+                        }
                     }
                 }
                 AddChannelTile(count, Modifier.width(56.dp).fillMaxHeight()) { state.addChannel() }
